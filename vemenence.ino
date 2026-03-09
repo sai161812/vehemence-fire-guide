@@ -1,3 +1,4 @@
+#include <WiFi.h>
 #include <Wire.h>
 #include <Adafruit_MLX90614.h>
 
@@ -7,13 +8,14 @@
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 
 int trigPin = 5;
-int echoPin = 18;
-
-int rfPin = 27;
+int echoPin = 19;
 int ledPin = 2;
 
-float tempThreshold = 70.0;   // danger heat
-int distanceThreshold = 50;   // obstacle distance
+const char* beaconSSID = "EXIT_BEACON";
+
+float tempThreshold = 70.0;
+int distanceThreshold = 50;
+int rssiThreshold = -60;
 
 long getDistance() {
 
@@ -31,6 +33,21 @@ long getDistance() {
   return distance;
 }
 
+int getBeaconRSSI() {
+
+  int networks = WiFi.scanNetworks();
+
+  for(int i = 0; i < networks; i++) {
+
+    if(WiFi.SSID(i) == beaconSSID) {
+      return WiFi.RSSI(i);
+    }
+
+  }
+
+  return -100;
+}
+
 void setup() {
 
   Serial.begin(115200);
@@ -41,48 +58,52 @@ void setup() {
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 
-  pinMode(rfPin, INPUT);
   pinMode(ledPin, OUTPUT);
 
-  Serial.println("System Started");
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+
+  Serial.println("Firefighter Escape System Started");
 }
 
 void loop() {
 
   float temperature = mlx.readObjectTempC();
   long distance = getDistance();
-  int rfSignal = digitalRead(rfPin);
+  int rssi = getBeaconRSSI();
 
-  Serial.println("-------------");
+  Serial.println("------");
 
   Serial.print("Temperature: ");
-  Serial.print(temperature);
-  Serial.println(" C");
+  Serial.println(temperature);
 
   Serial.print("Distance: ");
-  Serial.print(distance);
-  Serial.println(" cm");
+  Serial.println(distance);
 
-  Serial.print("RF Signal: ");
-  Serial.println(rfSignal);
+  Serial.print("WiFi RSSI: ");
+  Serial.println(rssi);
 
   bool safe = false;
 
-  if (temperature < tempThreshold &&
-      distance > distanceThreshold &&
-      rfSignal == HIGH) {
+  if(temperature < tempThreshold &&
+     distance > distanceThreshold &&
+     rssi > rssiThreshold) {
 
-    safe = true;
+      safe = true;
   }
 
-  if (safe) {
+  if(safe) {
+
     digitalWrite(ledPin, HIGH);
     Serial.println("SAFE DIRECTION");
-  }
+
+  } 
   else {
+
     digitalWrite(ledPin, LOW);
     Serial.println("UNSAFE");
+
   }
 
-  delay(1000);
+  delay(2000);
 }
